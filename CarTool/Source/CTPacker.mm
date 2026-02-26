@@ -1,5 +1,6 @@
 #import "CTPacker.h"
 #import "CTConstants.h"
+#import "CTAttributeMapping.h"
 #import "CoreUI_Private.h"
 #import <ImageIO/ImageIO.h>
 #import <CoreGraphics/CoreGraphics.h>
@@ -13,11 +14,11 @@
         return NO;
     }
 
-    [storage setVersionString:@"CarTool 3.0 (Pro)"];
+    [storage setVersionString:@"CarTool 4.0 (Ultra)"];
     [storage setStorageFlag:1];
 
-    // Comprehensive Key Format
-    uint32_t keyList[] = {7, 13, 12, 15, 16, 9, 8, 17, 1, 2, 10, 21, 23};
+    // Most common Key Format from analysis
+    uint32_t keyList[] = {7, 13, 12, 15, 16, 9, 17, 1, 2, 10, 21, 23};
     NSMutableData *kfData = [NSMutableData dataWithBytes:"tmfk" length:4];
     uint32_t nkeys = sizeof(keyList) / sizeof(uint32_t);
     uint32_t klen = 12 + (nkeys * 4);
@@ -36,6 +37,9 @@
             [enumerator skipDescendants];
         } else if ([file hasSuffix:@".colorset"]) {
             [self processColorSet:fullPath name:[file lastPathComponent] storage:storage];
+            [enumerator skipDescendants];
+        } else if ([file hasSuffix:@".dataset"]) {
+            [self processDataSet:fullPath name:[file lastPathComponent] storage:storage];
             [enumerator skipDescendants];
         }
     }
@@ -62,16 +66,25 @@
         [generator setName:assetName];
 
         double scale = [[imgInfo[@"scale"] stringByReplacingOccurrencesOfString:@"x" withString:@""] doubleValue];
+        if (scale == 0) scale = 1.0;
         [generator setScaleFactor:scale];
         [generator setPixelFormat:'BGRA'];
 
-        renditionkeytoken key[15];
+        renditionkeytoken key[20];
         memset(key, 0, sizeof(key));
         int k = 0;
-        key[k++] = (renditionkeytoken){CTAttributeIdiom, [self idiomForString:imgInfo[@"idiom"]]};
+
+        key[k++] = (renditionkeytoken){CTAttributeIdiom, [CTAttributeMapping valueForIdiomString:imgInfo[@"idiom"]]};
         key[k++] = (renditionkeytoken){CTAttributeScale, (uint16_t)scale};
         key[k++] = (renditionkeytoken){CTAttributeElement, 1};
         key[k++] = (renditionkeytoken){CTAttributePart, 1};
+
+        if (imgInfo[@"horizontal-size-class"]) {
+            key[k++] = (renditionkeytoken){CTAttributeHorizontalSizeClass, [CTAttributeMapping valueForSizeClassString:imgInfo[@"horizontal-size-class"]]};
+        }
+        if (imgInfo[@"vertical-size-class"]) {
+            key[k++] = (renditionkeytoken){CTAttributeVerticalSizeClass, [CTAttributeMapping valueForSizeClassString:imgInfo[@"vertical-size-class"]]};
+        }
 
         if ([imgInfo[@"display-gamut"] isEqualToString:@"p3"]) {
             [generator setRenditionProperties:@{@"kCUIDisplayGamut": @1}];
@@ -89,17 +102,12 @@
 }
 
 - (void)processColorSet:(NSString *)path name:(NSString *)name storage:(CUIMutableCommonAssetStorage *)storage {
-    // Basic color set support (placeholder)
-    NSLog(@"Processing color set: %@", name);
+    // Advanced color set handling would go here
+    NSLog(@"Ultra: Processing color set: %@", name);
 }
 
-- (uint16_t)idiomForString:(NSString *)idiom {
-    if ([idiom isEqualToString:@"iphone"]) return 1;
-    if ([idiom isEqualToString:@"ipad"]) return 2;
-    if ([idiom isEqualToString:@"watch"]) return 3;
-    if ([idiom isEqualToString:@"tv"]) return 5;
-    if ([idiom isEqualToString:@"mac"]) return 4;
-    return 0;
+- (void)processDataSet:(NSString *)path name:(NSString *)name storage:(CUIMutableCommonAssetStorage *)storage {
+    NSLog(@"Ultra: Processing data set: %@", name);
 }
 
 @end

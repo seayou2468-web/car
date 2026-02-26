@@ -1,6 +1,8 @@
 #ifndef CTConstants_h
 #define CTConstants_h
 
+#import <Foundation/Foundation.h>
+
 typedef enum : uint16_t {
     CTAttributeElement = 1,
     CTAttributePart = 2,
@@ -24,7 +26,26 @@ typedef enum : uint16_t {
     CTAttributeGraphicsClass = 20,
     CTAttributeDisplayGamut = 21,
     CTAttributeDeploymentTarget = 22,
-    CTAttributeAppearance = 23
+    CTAttributeAppearance = 23,
+    CTAttributeLocalization = 24,
+    CTAttributeGlyphWeight = 25,
+    CTAttributeGlyphSize = 26,
+    CTAttributeDeploymentTarget2 = 27
 } CTAttribute;
+
+typedef enum : long {
+    CTIdiomUniversal = 0,
+    CTIdiomIPhone = 1,
+    CTIdiomIPad = 2,
+    CTIdiomWatch = 3,
+    CTIdiomTV = 5,
+    CTIdiomMac = 4
+} CTIdiom;
+
+typedef enum : long {
+    CTSizeClassAny = 0,
+    CTSizeClassCompact = 1,
+    CTSizeClassRegular = 2
+} CTSizeClass;
 
 #endif

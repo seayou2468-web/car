@@ -1,16 +1,8 @@
 #import "CTPacker.h"
 #import "CTConstants.h"
-
-@interface CUIMutableCommonAssetStorage : NSObject
-- (instancetype)initWithPath:(NSString *)path;
-- (void)setRenditionKey:(const void *)key forName:(NSString *)name;
-- (void)setAsset:(NSData *)data forKey:(const void *)key;
-- (void)setStorageFlag:(uint32_t)flag;
-- (void)setVersionString:(NSString *)version;
-- (void)setUuid:(NSString *)uuid;
-- (void)setKeyFormatData:(NSData *)data;
-- (BOOL)writeToDisk;
-@end
+#import "CoreUI_Private.h"
+#import <ImageIO/ImageIO.h>
+#import <CoreGraphics/CoreGraphics.h>
 
 @implementation CTPacker
 
@@ -21,30 +13,42 @@
         return NO;
     }
 
-    [storage setVersionString:@"CarTool 1.0"];
+    [storage setVersionString:@"CarTool 2.0 (High Fidelity)"];
     [storage setStorageFlag:1];
+
+    // Set a comprehensive Key Format (mimicking Assets18.car which had 21 keys)
+    // For iOS, we typically use a smaller subset, but let's be thorough.
+    uint32_t keyList[] = {7, 13, 12, 15, 16, 9, 8, 17, 1, 2, 10, 21, 23};
+    NSMutableData *kfData = [NSMutableData dataWithBytes:"tmfk" length:4];
+    uint32_t nkeys = sizeof(keyList) / sizeof(uint32_t);
+    uint32_t klen = 12 + (nkeys * 4);
+    [kfData appendBytes:&klen length:4];
+    [kfData appendBytes:&nkeys length:4];
+    [kfData appendBytes:keyList length:sizeof(keyList)];
+    [storage setKeyFormatData:kfData];
 
     NSFileManager *fm = [NSFileManager defaultManager];
     NSDirectoryEnumerator *enumerator = [fm enumeratorAtPath:xcassetsPath];
     NSString *file;
     while ((file = [enumerator nextObject])) {
-        if ([file hasSuffix:@".imageset"]) {
-            NSString *setName = [file stringByDeletingPathExtension];
+        if ([file hasSuffix:@".imageset"] || [file hasSuffix:@".appiconset"]) {
             NSString *fullPath = [xcassetsPath stringByAppendingPathComponent:file];
-            [self processImageSet:fullPath name:[setName lastPathComponent] storage:storage];
+            [self processAssetSet:fullPath name:[file lastPathComponent] storage:storage];
+            [enumerator skipDescendants];
         }
     }
 
     return [storage writeToDisk];
 }
 
-- (void)processImageSet:(NSString *)path name:(NSString *)name storage:(CUIMutableCommonAssetStorage *)storage {
+- (void)processAssetSet:(NSString *)path name:(NSString *)name storage:(CUIMutableCommonAssetStorage *)storage {
     NSString *jsonPath = [path stringByAppendingPathComponent:@"Contents.json"];
     NSData *jsonData = [NSData dataWithContentsOfFile:jsonPath];
     if (!jsonData) return;
 
     NSDictionary *json = [NSJSONSerialization JSONObjectWithData:jsonData options:0 error:nil];
     NSArray *images = json[@"images"];
+    NSString *assetName = [name stringByDeletingPathExtension];
 
     for (NSDictionary *imgInfo in images) {
         NSString *filename = imgInfo[@"filename"];
@@ -54,41 +58,61 @@
         NSData *imgData = [NSData dataWithContentsOfFile:imgPath];
         if (!imgData) continue;
 
-        // Construct rendition key
-        // Format: (id, value) tokens, terminated by (0, 0)
-        // Here we use a simplified key for illustration.
-        // Real keys depend on the KEYFORMAT block.
-        struct {
-            uint16_t identifier;
-            uint16_t value;
-        } key[10];
+        CGImageSourceRef src = CGImageSourceCreateWithData((__bridge CFDataRef)imgData, NULL);
+        CGImageRef image = CGImageSourceCreateImageAtIndex(src, 0, NULL);
+        if (!image) { CFRelease(src); continue; }
+
+        CGSize size = CGSizeMake(CGImageGetWidth(image), CGImageGetHeight(image));
+        CSIGenerator *generator = [[NSClassFromString(@"CSIGenerator") alloc] initWithCanvasSize:size count:1];
+        [generator addBitmap:(__bridge id)image];
+        [generator setName:assetName];
+
+        double scale = [[imgInfo[@"scale"] stringByReplacingOccurrencesOfString:@"x" withString:@""] doubleValue];
+        [generator setScaleFactor:scale];
+        [generator setPixelFormat:'BGRA'];
+
+        // Handle Display Gamut
+        if ([imgInfo[@"display-gamut"] isEqualToString:@"p3"]) {
+            [generator setRenditionProperties:@{@"kCUIDisplayGamut": @1}];
+        }
+
+        NSData *csiData = [generator CSIRepresentationWithValidation:NO];
+
+        // Construct Rendition Key with more attributes
+        renditionkeytoken key[15];
         memset(key, 0, sizeof(key));
+        int k = 0;
 
-        int i = 0;
-        // Idiom
-        key[i].identifier = CTAttributeIdiom;
-        NSString *idiom = imgInfo[@"idiom"];
-        if ([idiom isEqualToString:@"iphone"]) key[i].value = 1;
-        else if ([idiom isEqualToString:@"ipad"]) key[i].value = 2;
-        i++;
+        key[k++] = (renditionkeytoken){CTAttributeIdiom, [self idiomForString:imgInfo[@"idiom"]]};
+        key[k++] = (renditionkeytoken){CTAttributeScale, (uint16_t)scale};
+        key[k++] = (renditionkeytoken){CTAttributeElement, 1}; // Simplified
+        key[k++] = (renditionkeytoken){CTAttributePart, 1}; // Simplified
 
-        // Scale
-        key[i].identifier = CTAttributeScale;
-        NSString *scale = imgInfo[@"scale"];
-        key[i].value = [scale intValue];
-        i++;
+        if (imgInfo[@"appearance"]) {
+            key[k++] = (renditionkeytoken){CTAttributeAppearance, 1}; // Placeholder ID
+        }
 
-        // Element (Asset Name hash or ID)
-        key[i].identifier = CTAttributeElement;
-        key[i].value = 1; // Simplified
-        i++;
+        if ([imgInfo[@"display-gamut"] isEqualToString:@"p3"]) {
+            key[k++] = (renditionkeytoken){CTAttributeDisplayGamut, 1};
+        }
 
-        // In a real implementation, we would use CoreUI to properly
-        // encode the image into a CSIR rendition.
-        // For now, we add the raw data as a placeholder.
-        [storage setAsset:imgData forKey:key];
-        [storage setRenditionKey:key forName:name];
+        key[k++] = (renditionkeytoken){0, 0}; // Terminator
+
+        [storage setAsset:csiData forKey:key];
+        [storage setRenditionKey:key forName:assetName];
+
+        CGImageRelease(image);
+        CFRelease(src);
     }
+}
+
+- (uint16_t)idiomForString:(NSString *)idiom {
+    if ([idiom isEqualToString:@"iphone"]) return 1;
+    if ([idiom isEqualToString:@"ipad"]) return 2;
+    if ([idiom isEqualToString:@"watch"]) return 3;
+    if ([idiom isEqualToString:@"tv"]) return 5;
+    if ([idiom isEqualToString:@"mac"]) return 4;
+    return 0;
 }
 
 @end

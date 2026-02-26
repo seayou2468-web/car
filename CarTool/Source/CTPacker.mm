@@ -13,11 +13,10 @@
         return NO;
     }
 
-    [storage setVersionString:@"CarTool 2.0 (High Fidelity)"];
+    [storage setVersionString:@"CarTool 3.0 (Pro)"];
     [storage setStorageFlag:1];
 
-    // Set a comprehensive Key Format (mimicking Assets18.car which had 21 keys)
-    // For iOS, we typically use a smaller subset, but let's be thorough.
+    // Comprehensive Key Format
     uint32_t keyList[] = {7, 13, 12, 15, 16, 9, 8, 17, 1, 2, 10, 21, 23};
     NSMutableData *kfData = [NSMutableData dataWithBytes:"tmfk" length:4];
     uint32_t nkeys = sizeof(keyList) / sizeof(uint32_t);
@@ -31,9 +30,12 @@
     NSDirectoryEnumerator *enumerator = [fm enumeratorAtPath:xcassetsPath];
     NSString *file;
     while ((file = [enumerator nextObject])) {
+        NSString *fullPath = [xcassetsPath stringByAppendingPathComponent:file];
         if ([file hasSuffix:@".imageset"] || [file hasSuffix:@".appiconset"]) {
-            NSString *fullPath = [xcassetsPath stringByAppendingPathComponent:file];
             [self processAssetSet:fullPath name:[file lastPathComponent] storage:storage];
+            [enumerator skipDescendants];
+        } else if ([file hasSuffix:@".colorset"]) {
+            [self processColorSet:fullPath name:[file lastPathComponent] storage:storage];
             [enumerator skipDescendants];
         }
     }
@@ -43,27 +45,19 @@
 
 - (void)processAssetSet:(NSString *)path name:(NSString *)name storage:(CUIMutableCommonAssetStorage *)storage {
     NSString *jsonPath = [path stringByAppendingPathComponent:@"Contents.json"];
-    NSData *jsonData = [NSData dataWithContentsOfFile:jsonPath];
-    if (!jsonData) return;
-
-    NSDictionary *json = [NSJSONSerialization JSONObjectWithData:jsonData options:0 error:nil];
-    NSArray *images = json[@"images"];
+    NSDictionary *json = [NSJSONSerialization JSONObjectWithData:[NSData dataWithContentsOfFile:jsonPath] options:0 error:nil];
     NSString *assetName = [name stringByDeletingPathExtension];
 
-    for (NSDictionary *imgInfo in images) {
+    for (NSDictionary *imgInfo in json[@"images"]) {
         NSString *filename = imgInfo[@"filename"];
         if (!filename) continue;
 
-        NSString *imgPath = [path stringByAppendingPathComponent:filename];
-        NSData *imgData = [NSData dataWithContentsOfFile:imgPath];
-        if (!imgData) continue;
-
+        NSData *imgData = [NSData dataWithContentsOfFile:[path stringByAppendingPathComponent:filename]];
         CGImageSourceRef src = CGImageSourceCreateWithData((__bridge CFDataRef)imgData, NULL);
         CGImageRef image = CGImageSourceCreateImageAtIndex(src, 0, NULL);
         if (!image) { CFRelease(src); continue; }
 
-        CGSize size = CGSizeMake(CGImageGetWidth(image), CGImageGetHeight(image));
-        CSIGenerator *generator = [[NSClassFromString(@"CSIGenerator") alloc] initWithCanvasSize:size count:1];
+        CSIGenerator *generator = [[NSClassFromString(@"CSIGenerator") alloc] initWithCanvasSize:CGSizeMake(CGImageGetWidth(image), CGImageGetHeight(image)) count:1];
         [generator addBitmap:(__bridge id)image];
         [generator setName:assetName];
 
@@ -71,39 +65,32 @@
         [generator setScaleFactor:scale];
         [generator setPixelFormat:'BGRA'];
 
-        // Handle Display Gamut
-        if ([imgInfo[@"display-gamut"] isEqualToString:@"p3"]) {
-            [generator setRenditionProperties:@{@"kCUIDisplayGamut": @1}];
-        }
-
-        NSData *csiData = [generator CSIRepresentationWithValidation:NO];
-
-        // Construct Rendition Key with more attributes
         renditionkeytoken key[15];
         memset(key, 0, sizeof(key));
         int k = 0;
-
         key[k++] = (renditionkeytoken){CTAttributeIdiom, [self idiomForString:imgInfo[@"idiom"]]};
         key[k++] = (renditionkeytoken){CTAttributeScale, (uint16_t)scale};
-        key[k++] = (renditionkeytoken){CTAttributeElement, 1}; // Simplified
-        key[k++] = (renditionkeytoken){CTAttributePart, 1}; // Simplified
-
-        if (imgInfo[@"appearance"]) {
-            key[k++] = (renditionkeytoken){CTAttributeAppearance, 1}; // Placeholder ID
-        }
+        key[k++] = (renditionkeytoken){CTAttributeElement, 1};
+        key[k++] = (renditionkeytoken){CTAttributePart, 1};
 
         if ([imgInfo[@"display-gamut"] isEqualToString:@"p3"]) {
+            [generator setRenditionProperties:@{@"kCUIDisplayGamut": @1}];
             key[k++] = (renditionkeytoken){CTAttributeDisplayGamut, 1};
         }
 
-        key[k++] = (renditionkeytoken){0, 0}; // Terminator
+        key[k++] = (renditionkeytoken){0, 0};
 
-        [storage setAsset:csiData forKey:key];
+        [storage setAsset:[generator CSIRepresentationWithValidation:NO] forKey:key];
         [storage setRenditionKey:key forName:assetName];
 
         CGImageRelease(image);
         CFRelease(src);
     }
+}
+
+- (void)processColorSet:(NSString *)path name:(NSString *)name storage:(CUIMutableCommonAssetStorage *)storage {
+    // Basic color set support (placeholder)
+    NSLog(@"Processing color set: %@", name);
 }
 
 - (uint16_t)idiomForString:(NSString *)idiom {

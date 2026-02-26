@@ -1,0 +1,30 @@
+name: Build CarTool Framework
+
+on:
+  push:
+    branches: [ main, feature/** ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
+
+    - name: Build Framework
+      run: |
+        chmod +x build_ios.sh
+        ./build_ios.sh
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: CarTool-Framework
+        path: build/CarTool.framework

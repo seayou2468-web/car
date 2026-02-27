@@ -1,4 +1,4 @@
-name: Build CarTool Framework
+name: Build CarTool Static Library
 
 on:
   push:
@@ -18,13 +18,15 @@ jobs:
       with:
         xcode-version: latest-stable
 
-    - name: Build Framework
+    - name: Build Static Library
       run: |
-        chmod +x build_ios.sh
-        ./build_ios.sh
+        chmod +x build_static_cartool.sh
+        ./build_static_cartool.sh
 
-    - name: Upload Artifacts
+    - name: Upload Static Library Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: CarTool-Framework
-        path: build/CarTool.framework
+        name: CarTool-Static
+        path: |
+          build/libCarTool.a
+          build/include

@@ -13,7 +13,7 @@ jobs:
     - name: Set up Xcode
       uses: maxim-lobanov/setup-xcode@v1
       with:
-        xcode-version: latest-stable
+        xcode-version: 26.1
 
     - name: Build Static Library
       run: |

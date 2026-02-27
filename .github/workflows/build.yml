@@ -1,7 +1,10 @@
-name: Build CarTool Static Library
+name: Build Singularity CarTool Framework
 
 on:
- workflow_dispatch:
+  push:
+    branches: [ main, feature/** ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   build:
@@ -13,17 +16,15 @@ jobs:
     - name: Set up Xcode
       uses: maxim-lobanov/setup-xcode@v1
       with:
-        xcode-version: 26.1
+        xcode-version: latest-stable
 
-    - name: Build Static Library
+    - name: Build Framework
       run: |
-        chmod +x build_ios.sh
-        ./build_ios.sh
+        chmod +x build_static_cartool.sh
+        ./build_static_cartool.sh
 
-    - name: Upload Static Library Artifact
+    - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: CarTool-Static
-        path: |
-          build/libCarTool.a
-          build/include
+        name: CarTool-Singularity-Framework
+        path: build/CarTool.framework

@@ -10,8 +10,9 @@ INCLUDE_DIR="include"
 
 mkdir -p "$BUILD_DIR/$FRAMEWORK_NAME.framework/Headers"
 
-echo "Compiling Ultra CarTool for $SDK ($ARCH)..."
+echo "Building Singularity CarTool for $SDK ($ARCH)..."
 
+# Compilation
 xcrun -sdk $SDK clang++ -dynamiclib -arch $ARCH \
     -install_name "@rpath/$FRAMEWORK_NAME.framework/$FRAMEWORK_NAME" \
     -fobjc-arc -O3 \
@@ -23,9 +24,11 @@ xcrun -sdk $SDK clang++ -dynamiclib -arch $ARCH \
     "$SOURCE_DIR/CTAttributeMapping.mm" \
     -o "$BUILD_DIR/$FRAMEWORK_NAME.framework/$FRAMEWORK_NAME"
 
+# Header installation
 cp "$SOURCE_DIR/"*.h "$BUILD_DIR/$FRAMEWORK_NAME.framework/Headers/"
 cp "$INCLUDE_DIR/CoreUI/CoreUI.h" "$BUILD_DIR/$FRAMEWORK_NAME.framework/Headers/" || true
 
+# Info.plist creation
 cat << EOP > "$BUILD_DIR/$FRAMEWORK_NAME.framework/Info.plist"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -44,13 +47,13 @@ cat << EOP > "$BUILD_DIR/$FRAMEWORK_NAME.framework/Info.plist"
     <key>CFBundlePackageType</key>
     <string>FMWK</string>
     <key>CFBundleShortVersionString</key>
-    <string>4.0</string>
+    <string>5.0</string>
     <key>CFBundleVersion</key>
-    <string>4</string>
+    <string>5</string>
     <key>MinimumOSVersion</key>
     <string>12.0</string>
 </dict>
 </plist>
 EOP
 
-echo "Successfully built Ultra $FRAMEWORK_NAME.framework"
+echo "Successfully built Singularity $FRAMEWORK_NAME.framework"

@@ -14,11 +14,11 @@
         return NO;
     }
 
-    [storage setVersionString:@"CarTool 5.0 (Singularity)"];
+    [storage setVersionString:@"CarTool 6.0 (Singularity)"];
     [storage setStorageFlag:1];
 
-    // Comprehensive Key Format
-    uint32_t keyList[] = {7, 13, 12, 15, 16, 9, 8, 17, 18, 1, 2, 10, 21, 23, 24, 25};
+    // Ultimate Key Format including almost everything known
+    uint32_t keyList[] = {7, 13, 12, 15, 16, 9, 8, 17, 18, 1, 2, 3, 4, 5, 10, 21, 23, 24, 25, 26, 27};
     NSMutableData *kfData = [NSMutableData dataWithBytes:"tmfk" length:4];
     uint32_t nkeys = sizeof(keyList) / sizeof(uint32_t);
     uint32_t klen = 12 + (nkeys * 4);
@@ -71,7 +71,17 @@
         [generator setPixelFormat:'BGRA'];
         [generator setCompressionType:1]; // LZVN
 
-        renditionkeytoken key[20];
+        // Handle Resizing / Slicing
+        if (imgInfo[@"resizing"]) {
+            NSDictionary *resizing = imgInfo[@"resizing"];
+            if ([resizing[@"mode"] isEqualToString:@"9-part"]) {
+                NSDictionary *capInsets = resizing[@"cap-insets"];
+                // This would map to internal CSI layout properties
+                // [generator setRenditionProperties:@{...}];
+            }
+        }
+
+        renditionkeytoken key[25];
         memset(key, 0, sizeof(key));
         int k = 0;
 
@@ -81,8 +91,14 @@
         key[k++] = (renditionkeytoken){CTAttributePart, 1};
 
         if (imgInfo[@"appearance"]) {
-            key[k++] = (renditionkeytoken){CTAttributeAppearance, 1};
-            [storage setAppearanceIdentifier:1 forName:@"dark"];
+            uint16_t appID = ([imgInfo[@"appearance"] containsString:@"dark"]) ? 1 : 0;
+            key[k++] = (renditionkeytoken){CTAttributeAppearance, appID};
+            if (appID == 1) [storage setAppearanceIdentifier:1 forName:@"dark"];
+        }
+
+        if (imgInfo[@"display-gamut"]) {
+            uint16_t gamut = ([imgInfo[@"display-gamut"] isEqualToString:@"p3"]) ? 1 : 0;
+            key[k++] = (renditionkeytoken){CTAttributeDisplayGamut, gamut};
         }
 
         key[k++] = (renditionkeytoken){0, 0};
@@ -112,14 +128,15 @@
 
         CSIGenerator *generator = [[NSClassFromString(@"CSIGenerator") alloc] initWithColorNamed:assetName colorSpaceID:0 components:comps];
 
-        renditionkeytoken key[20];
+        renditionkeytoken key[25];
         memset(key, 0, sizeof(key));
         int k = 0;
         key[k++] = (renditionkeytoken){CTAttributeIdiom, [CTAttributeMapping valueForIdiomString:colorInfo[@"idiom"]]};
         key[k++] = (renditionkeytoken){CTAttributeElement, 1};
 
         if (colorInfo[@"appearance"]) {
-            key[k++] = (renditionkeytoken){CTAttributeAppearance, 1};
+            uint16_t appID = ([colorInfo[@"appearance"] containsString:@"dark"]) ? 1 : 0;
+            key[k++] = (renditionkeytoken){CTAttributeAppearance, appID};
         }
 
         key[k++] = (renditionkeytoken){0, 0};
@@ -141,8 +158,9 @@
 
         CSIGenerator *generator = [[NSClassFromString(@"CSIGenerator") alloc] initWithRawData:raw pixelFormat:0 layout:0];
         [generator setName:assetName];
+        [generator setUTI:dataInfo[@"universal-type-identifier"] ?: @"public.data"];
 
-        renditionkeytoken key[20];
+        renditionkeytoken key[25];
         memset(key, 0, sizeof(key));
         int k = 0;
         key[k++] = (renditionkeytoken){CTAttributeIdiom, [CTAttributeMapping valueForIdiomString:dataInfo[@"idiom"]]};

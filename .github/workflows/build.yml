@@ -17,7 +17,7 @@ jobs:
 
     - name: Build Static Library
       run: |
-        chmod +x build_static_cartool.sh
+        chmod +x build_ios.sh
         ./build_ios.sh
 
     - name: Upload Static Library Artifact

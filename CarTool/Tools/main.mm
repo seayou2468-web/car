@@ -2,52 +2,74 @@
 #import <UIKit/UIKit.h>
 #import "CarTool.h"
 
+void printUsage() {
+    printf("iOS Native Asset Catalog Tool (Reconstructed)\n");
+    printf("Usage: actool [options] <command> [args]\n");
+    printf("\nCommands:\n");
+    printf("  pack <input_xcassets_path> <output_car_path>   Pack an .xcassets folder into a .car file\n");
+    printf("  unpack <input_car_path> <output_dir>          Unpack a .car file into an .xcassets structure\n");
+    printf("\nOptions:\n");
+    printf("  --platform <name>             Specify target platform (ios, watchos, tvos)\n");
+    printf("  --minimum-deployment-target   Set minimum OS version (ignored in this version)\n");
+}
+
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
         if (argc < 2) {
-            printf("Usage: actool <command> [args]\n");
-            printf("Commands:\n");
-            printf("  pack <input_xcassets_path> <output_car_path>   Pack an .xcassets folder into a .car file\n");
-            printf("  unpack <input_car_path> <output_dir>          Unpack a .car file into an .xcassets structure\n");
+            printUsage();
             return 1;
         }
 
-        NSString *cmd = [NSString stringWithUTF8String:argv[1]];
-        CTPacker *packer = [[CTPacker alloc] init];
-        CTUnpacker *unpacker = nil;
-        NSError *error = nil;
+        NSMutableArray *args = [NSMutableArray array];
+        for (int i = 1; i < argc; i++) {
+            [args addObject:[NSString stringWithUTF8String:argv[i]]];
+        }
 
-        if ([cmd isEqualToString:@"pack"]) {
-            if (argc < 4) {
-                printf("Error: Missing arguments for pack command.\n");
-                return 1;
+        NSString *cmd = nil;
+        NSString *input = nil;
+        NSString *output = nil;
+
+        for (NSUInteger i = 0; i < args.count; i++) {
+            NSString *arg = args[i];
+            if ([arg hasPrefix:@"--"]) {
+                if ([arg isEqualToString:@"--platform"]) i++; // skip next
+                continue;
             }
-            NSString *input = [NSString stringWithUTF8String:argv[2]];
-            NSString *output = [NSString stringWithUTF8String:argv[3]];
-            printf("Packing %s into %s...\n", [input UTF8String], [output UTF8String]);
+            if (!cmd) {
+                cmd = arg;
+            } else if (!input) {
+                input = arg;
+            } else if (!output) {
+                output = arg;
+            }
+        }
+
+        if (!cmd || !input || !output) {
+            printUsage();
+            return 1;
+        }
+
+        NSError *error = nil;
+        if ([cmd isEqualToString:@"pack"]) {
+            CTPacker *packer = [[CTPacker alloc] init];
+            printf("[*] Packing Asset Catalog: %s\n", [input UTF8String]);
             if ([packer packXcassetsPath:input toCarPath:output error:&error]) {
-                printf("Successfully packed %s.\n", [output UTF8String]);
+                printf("[+] Successfully compiled assets to %s\n", [output UTF8String]);
             } else {
-                printf("Failed to pack %s: %s\n", [output UTF8String], [[error localizedDescription] UTF8String]);
+                printf("[-] Error: %s\n", [[error localizedDescription] UTF8String]);
                 return 1;
             }
         } else if ([cmd isEqualToString:@"unpack"]) {
-            if (argc < 4) {
-                printf("Error: Missing arguments for unpack command.\n");
-                return 1;
-            }
-            NSString *input = [NSString stringWithUTF8String:argv[2]];
-            NSString *output = [NSString stringWithUTF8String:argv[3]];
-            printf("Unpacking %s into %s...\n", [input UTF8String], [output UTF8String]);
-            unpacker = [[CTUnpacker alloc] initWithCarPath:input];
+            CTUnpacker *unpacker = [[CTUnpacker alloc] initWithCarPath:input];
+            printf("[*] Extracting Assets from: %s\n", [input UTF8String]);
             if ([unpacker unpackToPath:output error:&error]) {
-                printf("Successfully unpacked %s.\n", [input UTF8String]);
+                printf("[+] Successfully extracted assets to %s\n", [output UTF8String]);
             } else {
-                printf("Failed to unpack %s: %s\n", [input UTF8String], [[error localizedDescription] UTF8String]);
+                printf("[-] Error: %s\n", [[error localizedDescription] UTF8String]);
                 return 1;
             }
         } else {
-            printf("Error: Unknown command %s.\n", [cmd UTF8String]);
+            printf("[-] Unknown command: %s\n", [cmd UTF8String]);
             return 1;
         }
     }

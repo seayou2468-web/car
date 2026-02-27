@@ -15,11 +15,11 @@
         return NO;
     }
 
-    [storage setVersionString:@"CarTool 7.0 (iOS Native)"];
+    [storage setVersionString:@"CarTool 9.0 (iOS Reconstructed)"];
     [storage setStorageFlag:1];
 
-    // iOS 17/18 Modern Key Format
-    uint32_t keyList[] = {7, 13, 12, 15, 16, 9, 8, 17, 1, 2, 10, 21, 23};
+    // Comprehensive Modern iOS Key Format
+    uint32_t keyList[] = {7, 13, 12, 15, 16, 9, 8, 17, 1, 2, 3, 4, 5, 10, 21, 23, 24, 25, 26, 27};
     NSMutableData *kfData = [NSMutableData dataWithBytes:"tmfk" length:4];
     uint32_t nkeys = sizeof(keyList) / sizeof(uint32_t);
     uint32_t klen = 12 + (nkeys * 4);
@@ -83,13 +83,14 @@
                     double bottom = [capInsets[@"bottom"] doubleValue];
                     double right = [capInsets[@"right"] doubleValue];
                     [generator setRenditionProperties:@{
-                        @"UIEdgeInsets": [NSValue valueWithUIEdgeInsets:UIEdgeInsetsMake(top, left, bottom, right)]
+                        @"CSIResizingMargins": [NSValue valueWithUIEdgeInsets:UIEdgeInsetsMake(top, left, bottom, right)],
+                        @"CSICapInsets": [NSValue valueWithUIEdgeInsets:UIEdgeInsetsMake(top, left, bottom, right)]
                     }];
                 }
             }
         }
 
-        renditionkeytoken key[20];
+        renditionkeytoken key[30];
         memset(key, 0, sizeof(key));
         int k = 0;
 
@@ -136,7 +137,7 @@
 
         CSIGenerator *generator = [[NSClassFromString(@"CSIGenerator") alloc] initWithColorNamed:assetName colorSpaceID:0 components:comps];
 
-        renditionkeytoken key[20];
+        renditionkeytoken key[30];
         memset(key, 0, sizeof(key));
         int k = 0;
         key[k++] = (renditionkeytoken){CTAttributeIdiom, [CTAttributeMapping valueForIdiomString:colorInfo[@"idiom"]]};
@@ -168,7 +169,7 @@
         [generator setName:assetName];
         [generator setUTI:dataInfo[@"universal-type-identifier"] ?: @"public.data"];
 
-        renditionkeytoken key[20];
+        renditionkeytoken key[30];
         memset(key, 0, sizeof(key));
         int k = 0;
         key[k++] = (renditionkeytoken){CTAttributeIdiom, [CTAttributeMapping valueForIdiomString:dataInfo[@"idiom"]]};

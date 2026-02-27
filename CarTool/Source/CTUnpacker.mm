@@ -80,6 +80,19 @@
                     } mutableCopy];
                     if (appearanceStr) imgDict[@"appearance"] = appearanceStr;
                     if (gamutStr) imgDict[@"display-gamut"] = gamutStr;
+
+                    // Handle Slicing (iOS Native)
+                    if (image.capInsets.top > 0 || image.capInsets.left > 0 || image.capInsets.bottom > 0 || image.capInsets.right > 0) {
+                        imgDict[@"resizing"] = @{
+                            @"mode": @"9-part",
+                            @"cap-insets": @{
+                                @"top": @(image.capInsets.top),
+                                @"left": @(image.capInsets.left),
+                                @"bottom": @(image.capInsets.bottom),
+                                @"right": @(image.capInsets.right)
+                            }
+                        };
+                    }
                     [imageInfoList addObject:imgDict];
                 }
                 continue;
@@ -87,11 +100,25 @@
 
             // 2. Try Color
             if ([catalog respondsToSelector:@selector(colorWithName:)]) {
-                id color = [catalog colorWithName:name];
+                UIColor *color = [catalog colorWithName:name];
                 if (color) {
-                    // CUI color objects are private, but we can potentially extract components if needed.
-                    // For now, we note its presence.
-                    [colorInfoList addObject:@{@"idiom": idiomStr, @"color": @{@"components": @{@"alpha":@1.0,@"blue":@0.0,@"green":@0.0,@"red":@1.0}}}];
+                    CGFloat r, g, b, a;
+                    if ([color getRed:&r green:&g blue:&b alpha:&a]) {
+                        NSMutableDictionary *colorDict = [@{
+                            @"idiom": idiomStr,
+                            @"color": @{
+                                @"components": @{
+                                    @"red": @(r),
+                                    @"green": @(g),
+                                    @"blue": @(b),
+                                    @"alpha": @(a)
+                                },
+                                @"color-space": @"srgb"
+                            }
+                        } mutableCopy];
+                        if (appearanceStr) colorDict[@"appearance"] = appearanceStr;
+                        [colorInfoList addObject:colorDict];
+                    }
                     continue;
                 }
             }
@@ -123,7 +150,7 @@
 
 - (void)writeContentsJson:(NSDictionary *)dict toDir:(NSString *)dir {
     NSMutableDictionary *contents = [dict mutableCopy];
-    contents[@"info"] = @{@"version": @1, @"author": @"CarTool iOS Native"};
+    contents[@"info"] = @{@"version": @1, @"author": @"CarTool iOS Reconstructed"};
     NSData *jsonData = [NSJSONSerialization dataWithJSONObject:contents options:NSJSONWritingPrettyPrinted error:nil];
     [[NSFileManager defaultManager] createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
     [jsonData writeToFile:[dir stringByAppendingPathComponent:@"Contents.json"] atomically:YES];

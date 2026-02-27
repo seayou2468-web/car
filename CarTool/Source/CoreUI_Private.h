@@ -1,9 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <CoreGraphics/CoreGraphics.h>
-
-#if TARGET_OS_IPHONE
 #import <UIKit/UIKit.h>
-#endif
 
 typedef struct _renditionkeytoken {
     uint16_t identifier;
@@ -15,6 +12,7 @@ typedef struct _renditionkeytoken {
 - (instancetype)initWithKeyList:(const renditionkeytoken *)list;
 - (void)setValuesFromKeyList:(const renditionkeytoken *)list;
 - (const renditionkeytoken *)keyList;
+// Setters for all standard attributes
 - (void)setThemeElement:(unsigned short)arg1;
 - (void)setThemePart:(unsigned short)arg1;
 - (void)setThemeSize:(unsigned short)arg1;
@@ -38,6 +36,7 @@ typedef struct _renditionkeytoken {
 - (void)setThemeDisplayGamut:(unsigned short)arg1;
 - (void)setThemeDeploymentTarget:(unsigned short)arg1;
 - (void)setThemeAppearance:(unsigned short)arg1;
+- (void)setThemeLocalization:(unsigned short)arg1;
 @end
 
 @interface CSIGenerator : NSObject

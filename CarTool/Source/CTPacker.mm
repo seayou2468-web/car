@@ -83,7 +83,7 @@
                     double bottom = [capInsets[@"bottom"] doubleValue];
                     double right = [capInsets[@"right"] doubleValue];
                     [generator setRenditionProperties:@{
-                        @"UIEdgeInsets": [NSValue valueWithBytes:&(struct{double t,l,b,r;}){top,left,bottom,right} objCType:@encode(struct{double t,l,b,r;})]
+                        @"UIEdgeInsets": [NSValue valueWithUIEdgeInsets:UIEdgeInsetsMake(top, left, bottom, right)]
                     }];
                 }
             }

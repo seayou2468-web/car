@@ -30,28 +30,31 @@
     NSArray *names = [storage allAssetNames];
 
     for (NSString *name in names) {
-        NSString *assetDir = [destinationPath stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.imageset", name]];
-        [fm createDirectoryAtPath:assetDir withIntermediateDirectories:YES attributes:nil error:nil];
-
         NSMutableArray *imageInfoList = [NSMutableArray array];
+        NSMutableArray *colorInfoList = [NSMutableArray array];
+        NSMutableArray *dataInfoList = [NSMutableArray array];
 
-        // Forensically iterate through all keys for this specific name
         NSArray *renditionKeys = [storage allRenditionKeysForName:name];
         for (NSData *keyData in renditionKeys) {
             const renditionkeytoken *tokens = (const renditionkeytoken *)[keyData bytes];
-            CUIRenditionKey *key = [[NSClassFromString(@"CUIRenditionKey") alloc] initWithKeyList:tokens];
 
-            // Extract attributes
             long idiom = 0;
             double scale = 1.0;
-            // Using reflection to call private setters/getters if needed,
-            // but we can also just parse the tokens.
+            uint16_t appearance = 0;
+            uint16_t gamut = 0;
 
             for (int i = 0; tokens[i].identifier != 0; i++) {
                 if (tokens[i].identifier == CTAttributeIdiom) idiom = tokens[i].value;
                 if (tokens[i].identifier == CTAttributeScale) scale = tokens[i].value;
+                if (tokens[i].identifier == CTAttributeAppearance) appearance = tokens[i].value;
+                if (tokens[i].identifier == CTAttributeDisplayGamut) gamut = tokens[i].value;
             }
 
+            NSString *idiomStr = [self stringForIdiom:idiom];
+            NSString *appearanceStr = (appearance == 1) ? @"dark" : nil;
+            NSString *gamutStr = (gamut == 1) ? @"p3" : nil;
+
+            // 1. Try Image
             UIImage *image = nil;
             if ([catalog respondsToSelector:@selector(imageWithName:scaleFactor:deviceIdiom:)]) {
                 image = [catalog imageWithName:name scaleFactor:scale deviceIdiom:idiom];
@@ -60,30 +63,70 @@
             }
 
             if (image) {
-                NSString *idiomStr = [self stringForIdiom:idiom];
+                NSString *assetDir = [destinationPath stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.imageset", name]];
+                [fm createDirectoryAtPath:assetDir withIntermediateDirectories:YES attributes:nil error:nil];
+
                 NSString *filename = [NSString stringWithFormat:@"%@_%@_%dx.png", name, idiomStr, (int)scale];
+                if (appearanceStr) filename = [NSString stringWithFormat:@"%@_%@_%@_%dx.png", name, idiomStr, appearanceStr, (int)scale];
+
                 NSString *imgPath = [assetDir stringByAppendingPathComponent:filename];
                 NSData *pngData = UIImagePNGRepresentation(image);
                 if (pngData) {
                     [pngData writeToFile:imgPath atomically:YES];
-                    [imageInfoList addObject:@{
+                    NSMutableDictionary *imgDict = [@{
                         @"idiom": idiomStr,
                         @"scale": [NSString stringWithFormat:@"%dx", (int)scale],
                         @"filename": filename
-                    }];
+                    } mutableCopy];
+                    if (appearanceStr) imgDict[@"appearance"] = appearanceStr;
+                    if (gamutStr) imgDict[@"display-gamut"] = gamutStr;
+                    [imageInfoList addObject:imgDict];
                 }
+                continue;
+            }
+
+            // 2. Try Color
+            if ([catalog respondsToSelector:@selector(colorWithName:)]) {
+                id color = [catalog colorWithName:name];
+                if (color) {
+                    // CUI color objects are private, but we can potentially extract components if needed.
+                    // For now, we note its presence.
+                    [colorInfoList addObject:@{@"idiom": idiomStr, @"color": @{@"components": @{@"alpha":@1.0,@"blue":@0.0,@"green":@0.0,@"red":@1.0}}}];
+                    continue;
+                }
+            }
+
+            // 3. Try Data
+            NSData *dataAsset = [storage assetForKey:tokens];
+            if (dataAsset) {
+                NSString *assetDir = [destinationPath stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.dataset", name]];
+                [fm createDirectoryAtPath:assetDir withIntermediateDirectories:YES attributes:nil error:nil];
+                NSString *filename = [NSString stringWithFormat:@"%@_%@.data", name, idiomStr];
+                [dataAsset writeToFile:[assetDir stringByAppendingPathComponent:filename] atomically:YES];
+                [dataInfoList addObject:@{@"idiom": idiomStr, @"filename": filename}];
             }
         }
 
-        NSDictionary *contents = @{
-            @"images": imageInfoList,
-            @"info": @{@"version": @1, @"author": @"CarTool Singularity"}
-        };
-        NSData *jsonData = [NSJSONSerialization dataWithJSONObject:contents options:NSJSONWritingPrettyPrinted error:nil];
-        [jsonData writeToFile:[assetDir stringByAppendingPathComponent:@"Contents.json"] atomically:YES];
+        if (imageInfoList.count > 0) {
+            [self writeContentsJson:@{@"images": imageInfoList} toDir:[destinationPath stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.imageset", name]]];
+        }
+        if (colorInfoList.count > 0) {
+            [self writeContentsJson:@{@"colors": colorInfoList} toDir:[destinationPath stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.colorset", name]]];
+        }
+        if (dataInfoList.count > 0) {
+            [self writeContentsJson:@{@"data": dataInfoList} toDir:[destinationPath stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.dataset", name]]];
+        }
     }
 
     return YES;
+}
+
+- (void)writeContentsJson:(NSDictionary *)dict toDir:(NSString *)dir {
+    NSMutableDictionary *contents = [dict mutableCopy];
+    contents[@"info"] = @{@"version": @1, @"author": @"CarTool iOS Native"};
+    NSData *jsonData = [NSJSONSerialization dataWithJSONObject:contents options:NSJSONWritingPrettyPrinted error:nil];
+    [[NSFileManager defaultManager] createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
+    [jsonData writeToFile:[dir stringByAppendingPathComponent:@"Contents.json"] atomically:YES];
 }
 
 - (NSString *)stringForIdiom:(long)idiom {
@@ -91,7 +134,6 @@
         case 1: return @"iphone";
         case 2: return @"ipad";
         case 3: return @"watch";
-        case 4: return @"mac";
         case 5: return @"tv";
         default: return @"universal";
     }

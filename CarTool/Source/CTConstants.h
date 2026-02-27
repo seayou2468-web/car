@@ -39,6 +39,7 @@ typedef enum : long {
     CTIdiomIPad = 2,
     CTIdiomWatch = 3,
     CTIdiomTV = 5,
+    CTIdiomMac = 4
 } CTIdiom;
 
 typedef enum : long {

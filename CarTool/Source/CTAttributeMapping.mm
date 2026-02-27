@@ -24,6 +24,7 @@
     if ([string isEqualToString:@"ipad"]) return CTIdiomIPad;
     if ([string isEqualToString:@"watch"]) return CTIdiomWatch;
     if ([string isEqualToString:@"tv"]) return CTIdiomTV;
+    if ([string isEqualToString:@"mac"]) return CTIdiomMac;
     return CTIdiomUniversal;
 }
 
